@@ -1,6 +1,6 @@
 # Drink the Ocean
 
-英文静态游戏站，目标 Cloudflare Pages。使用官方详情页公开的 Playgama iframe 地址，不包含其他站点的 CLID，不声称已签约或产生分成。
+英文静态游戏站，正式域名为 `https://drink-the-ocean.site`，通过 Cloudflare Workers Builds 部署。使用官方详情页公开的 Playgama iframe 地址，不包含其他站点的 CLID，不声称已签约或产生分成。
 
 ## 本地运行
 
@@ -18,26 +18,22 @@ npm run dev
 
 编辑 `site.config.json`：
 
-- `origin`：实际 HTTPS 域名，例如 `https://your-domain.tld`，无子路径。
-- `indexable`：预览保持 false；正式上线且域名核对后设 true。
+- `origin`：站点的正式 HTTPS 域名，无子路径。
+- `indexable`：本地与预览的索引默认值，保持 `false`。
 - `embedUrl`：当前使用官方公开 export 地址。取得专属 iframe 代码后，将其 src 原样配置，保留自己的 CLID 查询参数。
 
-也支持环境变量 `SITE_URL`、`INDEXABLE=true`、`PLAYGAMA_EMBED_URL`。构建产物写入 `dist/`。未配置域名不输出虚假 canonical；默认页面和响应头均为 noindex。开启索引但缺少域名时构建失败。
+也支持环境变量 `SITE_URL`、`INDEXABLE`、`PLAYGAMA_EMBED_URL`。显式设置的 `INDEXABLE=true` 或 `INDEXABLE=false` 会覆盖默认行为。构建产物写入 `dist/`；开启索引但缺少域名时构建失败。
 
-## Cloudflare Pages
+## Cloudflare Workers Builds
 
-1. 使用 Git integration 导入仓库，Framework preset 选 None。
-2. Build command：`npm run build && npm run check`；Build output directory：`dist`。
-3. 配置生产环境 SITE_URL 为完整正式域名，INDEXABLE=true；预览环境保持 INDEXABLE=false，且配置文件 indexable=false。
-4. 在 Custom domains 绑定域名。验证 HTTPS、404、canonical、robots、sitemap 和 iframe。
-5. 将 pages.dev 和 www 等重复入口按实际主域名配置重定向，预览保持 noindex。
-6. Search Console 验证域名后提交 `/sitemap.xml`。
+1. 将 Worker 的生产分支设为 `main`，运行 `npm run build && npm run check`，并部署 `dist/` 中的静态文件。
+2. Workers Builds 的 `main` 构建默认开启索引；其他分支和本地构建默认保持 `noindex`。如需覆盖，请在 **Build variables and secrets** 中配置，避免把生产索引变量用于预览。
+3. 部署后访问 `https://drink-the-ocean.site/sitemap.xml` 和 `https://drink-the-ocean.site/robots.txt`。站点地图应返回 HTTP 200，且首页不应带 `noindex`。
+4. Search Console 验证域名后提交 `/sitemap.xml`。
 
 `sitemap.xml` 由正式构建自动生成，只收录与页面 canonical 一致的可索引 URL。`robots.txt` 会声明站点地图的完整地址。预览构建不输出站点地图，也会清理同一个 `dist/` 里的旧地图。新增可索引页面后重新构建即可更新清单。
 
-官方文档：https://developers.cloudflare.com/pages/framework-guides/deploy-anything/
-
-此项目尚未建立 Cloudflare 远程项目或完成线上部署。需要站长提供目标域名及项目访问方式；不要把 API token 提交到代码仓库。
+官方文档：https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 
 ## 游戏与验收边界
 

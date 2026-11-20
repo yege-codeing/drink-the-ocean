@@ -2,7 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 const config = JSON.parse(await fs.readFile('site.config.json','utf8'));
 const siteUrl = process.env.SITE_URL || config.origin;
-const indexable = process.env.INDEXABLE === undefined ? config.indexable : process.env.INDEXABLE === 'true';
+const workersProduction = process.env.WORKERS_CI === '1' && process.env.WORKERS_CI_BRANCH === 'main';
+const indexable = process.env.INDEXABLE === undefined
+ ? workersProduction || config.indexable
+ : process.env.INDEXABLE === 'true';
 const originError = 'SITE_URL must be an HTTPS origin without credentials, a path, a query, or a fragment';
 if (siteUrl && (!/^https:\/\/[^/\\?#@\s]+\/?$/i.test(siteUrl) || !URL.canParse(siteUrl))) throw new Error(originError);
 const origin = siteUrl ? new URL(siteUrl).origin : '';
