@@ -33,6 +33,8 @@ npm run dev
 5. 将 pages.dev 和 www 等重复入口按实际主域名配置重定向，预览保持 noindex。
 6. Search Console 验证域名后提交 `/sitemap.xml`。
 
+`sitemap.xml` 由正式构建自动生成，只收录与页面 canonical 一致的可索引 URL。`robots.txt` 会声明站点地图的完整地址。预览构建不输出站点地图，也会清理同一个 `dist/` 里的旧地图。新增可索引页面后重新构建即可更新清单。
+
 官方文档：https://developers.cloudflare.com/pages/framework-guides/deploy-anything/
 
 此项目尚未建立 Cloudflare 远程项目或完成线上部署。需要站长提供目标域名及项目访问方式；不要把 API token 提交到代码仓库。

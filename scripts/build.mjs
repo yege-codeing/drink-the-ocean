@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 const config = JSON.parse(await fs.readFile('site.config.json','utf8'));
-const origin = process.env.SITE_URL || config.origin;
+const siteUrl = process.env.SITE_URL || config.origin;
 const indexable = process.env.INDEXABLE === undefined ? config.indexable : process.env.INDEXABLE === 'true';
-if (origin && (new URL(origin).protocol !== 'https:' || new URL(origin).pathname !== '/')) throw new Error('SITE_URL must be an HTTPS origin without a path');
+const originError = 'SITE_URL must be an HTTPS origin without credentials, a path, a query, or a fragment';
+if (siteUrl && (!/^https:\/\/[^/\\?#@\s]+\/?$/i.test(siteUrl) || !URL.canParse(siteUrl))) throw new Error(originError);
+const origin = siteUrl ? new URL(siteUrl).origin : '';
 if (indexable && !origin) throw new Error('Set your real SITE_URL before enabling indexing');
 const embed = process.env.PLAYGAMA_EMBED_URL || config.embedUrl;
 const embedURL = new URL(embed);
@@ -37,14 +39,23 @@ const pages = [
 ];
 await fs.mkdir('dist',{recursive:true});
 await fs.cp('public','dist',{recursive:true});
+const sitemapUrls = [];
 for(const page of pages){
- const url = origin ? new URL(page.slug ? `/${page.slug}/` : '/',origin).href : '';
+ const route = page.slug ? `/${page.slug}/` : '/';
+ const url = origin && page.slug !== '404' ? new URL(route, origin).href : '';
+ if (indexable && url) sitemapUrls.push(url);
  const json = {'@context':'https://schema.org','@type':page.slug?'WebPage':'WebPage',name:page.title,description:page.description,...(url?{url}:{}),inLanguage:'en',...(page.slug?{}:{about:{'@type':'VideoGame',name:'Drink the Ocean',author:{'@type':'Organization',name:'Pinidi Studio'},url:official,gamePlatform:'Web browser'}})};
  const inner = page.slug ? `<article class="prose"><div class="breadcrumb"><a href="/">Home</a> / ${esc(page.slug.replaceAll('-',' '))}</div><p class="eyebrow">Drink the Ocean / Field notes</p><h1>${page.heading}</h1>${page.body}${['about','privacy','404'].includes(page.slug)?'':source}<a class="back-play" href="/#player">Back to the game →</a></article>` : page.body;
  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(page.title)}</title><meta name="description" content="${esc(page.description)}"><meta name="robots" content="${indexable&&page.slug!=='404'?'index,follow,max-image-preview:large':'noindex,follow'}">${url?`<link rel="canonical" href="${esc(url)}"><meta property="og:url" content="${esc(url)}">`:''}<meta property="og:type" content="website"><meta property="og:title" content="${esc(page.title)}"><meta property="og:description" content="${esc(page.description)}"><meta property="og:site_name" content="Drink the Ocean"><meta name="twitter:card" content="summary"><meta name="theme-color" content="#075a74"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><script type="application/ld+json">${JSON.stringify(json).replaceAll('<','\\u003c')}</script><script src="/app.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><div class="wrap nav"><a class="brand" href="/"><span class="brand-icon" aria-hidden="true">≈</span>drink the ocean<span style="color:#809e9a">.</span></a><nav aria-label="Main navigation"><a href="/how-to-play/">How to play</a><a class="optional" href="/controls/">Controls</a><a class="optional" href="/#faq">FAQ</a><a class="nav-play" href="/#player">Play now ↗</a></nav></div></header><main class="wrap" id="main">${inner}</main><footer class="wrap footer"><div><strong>Small sips. Big discoveries.</strong><p>Independent Drink the Ocean guide. Game by Pinidi Studio, delivered by Playgama. Game titles and assets belong to their respective owners.</p></div><div class="footer-links"><a href="/about/">About</a><a href="/privacy/">Privacy</a><a href="/troubleshooting/">Help</a></div></footer></body></html>`;
  const target = page.slug==='404'?'dist/404.html':path.join('dist',page.slug,'index.html');await fs.mkdir(path.dirname(target),{recursive:true});await fs.writeFile(target,html);
 }
-await fs.writeFile('dist/robots.txt',`User-agent: *\nAllow: /\n${origin?`Sitemap: ${new URL('/sitemap.xml',origin).href}\n`:''}`);
-await fs.writeFile('dist/sitemap.xml',`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${origin?pages.filter(p=>p.slug!=='404').map(p=>`<url><loc>${esc(new URL(p.slug?`/${p.slug}/`:'/',origin).href)}</loc></url>`).join(''):''}</urlset>`);
+const sitemapPath = 'dist/sitemap.xml';
+if (indexable) {
+ const urlEntries = sitemapUrls.map(url => `  <url><loc>${esc(url)}</loc></url>`).join('\n');
+ await fs.writeFile(sitemapPath, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlEntries}\n</urlset>\n`);
+} else {
+ await fs.rm(sitemapPath, {force: true});
+}
+await fs.writeFile('dist/robots.txt',`User-agent: *\nAllow: /\n${indexable?`Sitemap: ${origin}/sitemap.xml\n`:''}`);
 await fs.writeFile('dist/_headers',`/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Frame-Options: SAMEORIGIN\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n${indexable?'':'  X-Robots-Tag: noindex, follow\n'}`);
 console.log(`Built ${pages.length} pages. Origin: ${origin||'not configured'}. Indexing: ${indexable}.`);
